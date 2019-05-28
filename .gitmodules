@@ -1,0 +1,12 @@
+[submodule "cores"]
+	path = cores
+	url = https://github.com/PaulStoffregen/cores.git
+[submodule "libraries/aemnet_utils"]
+	path = libraries/aemnet_utils
+	url = git@github.com:rahulsalvi/aemnet_utils.git
+[submodule "libraries/dashboard_shield"]
+	path = libraries/dashboard_shield
+	url = git@github.com:rahulsalvi/dashboard_shield.git
+[submodule "libraries/FlexCAN_Library"]
+	path = libraries/FlexCAN_Library
+	url = https://github.com/pawelsky/FlexCAN_Library.git
