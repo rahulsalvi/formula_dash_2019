@@ -12,7 +12,7 @@
 #define SHIFT_LIGHTS 2
 #define TACHOMETER 3
 
-#define BRIGHTNESS 128
+#define BRIGHTNESS 255
 
 using aemnet_utils::fixed_point_t;
 using dashboard_shield::dashboard_t;
