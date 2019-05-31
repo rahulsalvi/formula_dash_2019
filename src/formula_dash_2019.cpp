@@ -18,12 +18,6 @@ inline float fixed_to_float(fixed_point_t a) {
     return a / 65536.0;
 }
 
-static uint8_t rpm_lut[14] = {9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
-static uint8_t clt_lut[13] = {8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
-
-#define STATE_IDLE 0
-#define STATE_INIT 1
-#define STATE_NORMAL 2
 uint8_t state;
 
 void state_idle();
@@ -36,14 +30,7 @@ int      init_step        = 0;
 uint8_t  blink            = 128;
 
 inline void reset_all_pixels() {
-    for (int i = 0; i < DS_PIXEL_CHANNELS; i++) {
-        for (int j = 0; j < DS_PIXELS_PER_CHANNEL; j++) {
-            dashboard.pixel_channels[i].pixels[j].red = 0;
-            dashboard.pixel_channels[i].pixels[j].grn = 0;
-            dashboard.pixel_channels[i].pixels[j].blu = 0;
-            dashboard.pixel_channels[i].pixels[j].wht = 0;
-        }
-    }
+    memset((void*)&dashboard.pixel_channels, 0, DS_PIXEL_CHANNELS * DS_PIXELS_PER_CHANNEL * 4);
 }
 
 void setup() {
@@ -81,19 +68,14 @@ void state_idle() {
     }
 }
 
-static uint8_t tach_lut[16]    = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
-static uint8_t coolant_lut[16] = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
-
 void state_init() {
+    static const uint8_t tach_lut[16]    = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
+    static const uint8_t coolant_lut[16] = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
     for (int i = 0; i < 16; i++) {
         *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[tach_lut[i]] =
             colors[init_sequence_tach[init_step][i]];
-    }
-    for (int i = 0; i < 16; i++) {
         *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[coolant_lut[i]] =
             colors[init_sequence_coolant[init_step][i]];
-    }
-    for (int i = 0; i < 16; i++) {
         *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] =
             colors[init_sequence_shift_lights[init_step][i]];
     }
@@ -104,7 +86,10 @@ void state_init() {
 
 void state_normal() {
     recv_cycle_count = (received ? 300 : recv_cycle_count - 1);
-    if (!recv_cycle_count) { state = STATE_IDLE; }
+    if (!recv_cycle_count) {
+        state = STATE_IDLE;
+        return;
+    }
 
     // tachometer
     *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[10] = colors[WHT];
@@ -115,6 +100,7 @@ void state_normal() {
     float   rpm     = fixed_to_float(aemnet_utils::rpm());
     uint8_t rpm_led = rpm / 958;
     if (rpm_led > 13) { rpm_led = 13; }
+    static uint8_t rpm_lut[14] = {9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
     *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[rpm_lut[rpm_led]] += colors[GRN];
 
     // shift lights
@@ -174,16 +160,11 @@ void state_normal() {
     if (clt < 70) { clt = 70; }
     uint8_t clt_led = ((clt - 70) / 3);
     if (clt_led > 12) { clt_led = 12; }
-
-    if (clt_led < 5) {
-        *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[clt_lut[clt_led]] = colors[BLU];
-    } else if (clt_led < 8) {
-        *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[clt_lut[clt_led]] = colors[GRN];
-    } else if (clt_led < 10) {
-        *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[clt_lut[clt_led]] = colors[YLW];
-    } else {
-        *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[clt_lut[clt_led]] = colors[RED];
-    }
+    static const uint8_t clt_lut[13]       = {8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
+    static const uint8_t clt_color_lut[13] = {
+        BLU, BLU, BLU, BLU, BLU, GRN, GRN, GRN, YLW, YLW, RED, RED, RED};
+    *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[clt_lut[clt_led]] =
+        colors[clt_color_lut[clt_led]];
 
     // status bars
     float fpr = fixed_to_float(aemnet_utils::fuel_pressure());
