@@ -1,7 +1,7 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-#define BRIGHTNESS 255
+#define BRIGHTNESS 16
 
 #define COOLANT 0
 #define STATUS_BARS 1

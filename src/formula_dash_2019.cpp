@@ -78,6 +78,8 @@ void state_init() {
             colors[init_sequence_coolant[init_step][i]];
         *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] =
             colors[init_sequence_shift_lights[init_step][i]];
+        *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] =
+            colors[init_sequence_status_bars[init_step][i]];
     }
     delay(30);
     init_step += 1;
@@ -100,8 +102,13 @@ void state_normal() {
     float   rpm     = fixed_to_float(aemnet_utils::rpm());
     uint8_t rpm_led = rpm / 958;
     if (rpm_led > 13) { rpm_led = 13; }
-    static uint8_t rpm_lut[14] = {9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
-    *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[rpm_lut[rpm_led]] += colors[GRN];
+    static uint8_t rpm_lut[14]       = {9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
+    static uint8_t rpm_color_lut[14] = {
+        PRP, PRP, PRP, PRP, CYN, CYN, CYN, CYN, GRN, GRN, GRN, GRN, YLW, YLW};
+    for (int i = 0; i <= rpm_led; i++) {
+        *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[rpm_lut[i]] +=
+            colors[rpm_color_lut[i]];
+    }
 
     // shift lights
     if (rpm > 10800) {
