@@ -81,13 +81,23 @@ void state_idle() {
     }
 }
 
-static uint8_t tach_lut[16] = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
+static uint8_t tach_lut[16]    = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
+static uint8_t coolant_lut[16] = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
 
 void state_init() {
     for (int i = 0; i < 16; i++) {
         *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[tach_lut[i]] =
             colors[init_sequence_tach[init_step][i]];
     }
+    for (int i = 0; i < 16; i++) {
+        *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[coolant_lut[i]] =
+            colors[init_sequence_coolant[init_step][i]];
+    }
+    for (int i = 0; i < 16; i++) {
+        *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] =
+            colors[init_sequence_shift_lights[init_step][i]];
+    }
+    delay(30);
     init_step += 1;
     if (init_step == INIT_STEPS) { state = STATE_NORMAL; }
 }
