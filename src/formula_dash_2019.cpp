@@ -27,7 +27,6 @@ void state_normal();
 uint32_t recv_cycle_count = 300;
 uint8_t  received         = 0;
 int      init_step        = 0;
-uint8_t  blink            = 128;
 
 inline void reset_all_pixels() {
     memset((void*)&dashboard.pixel_channels, 0, DS_PIXEL_CHANNELS * DS_PIXELS_PER_CHANNEL * 4);
@@ -106,49 +105,41 @@ void state_normal() {
     static uint8_t rpm_color_lut[14] = {
         PRP, PRP, PRP, PRP, CYN, CYN, CYN, CYN, GRN, GRN, GRN, GRN, YLW, YLW};
     for (int i = 0; i <= rpm_led; i++) {
-        *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[rpm_lut[i]] +=
+        *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[rpm_lut[i]] =
             colors[rpm_color_lut[i]];
     }
 
     // shift lights
     if (rpm > 10800) {
-        if (blink >> 7) {
-            for (int i = 0; i < 15; i++) {
-                *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] = colors[BLU];
-            }
-        }
-        blink += 8;
-    } else if (rpm > 10000) {
         for (int i = 0; i < 15; i++) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] = colors[BLU];
         }
-        blink = 128;
     } else {
-        if (rpm > 9687.5) {
+        if (rpm > 10387.5) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[7] = colors[RED];
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[8] = colors[RED];
         }
-        if (rpm > 9375) {
+        if (rpm > 9975) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[6] = colors[RED];
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[9] = colors[RED];
         }
-        if (rpm > 9062.5) {
+        if (rpm > 9562.5) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[5]  = colors[YLW];
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[10] = colors[YLW];
         }
-        if (rpm > 8750) {
+        if (rpm > 9150) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[4]  = colors[YLW];
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[11] = colors[YLW];
         }
-        if (rpm > 8437.5) {
+        if (rpm > 8737.5) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[3]  = colors[GRN];
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[12] = colors[GRN];
         }
-        if (rpm > 8125) {
+        if (rpm > 8325) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[2]  = colors[GRN];
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[13] = colors[GRN];
         }
-        if (rpm > 7812.5) {
+        if (rpm > 7912.5) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[1]  = colors[GRN];
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[14] = colors[GRN];
         }
