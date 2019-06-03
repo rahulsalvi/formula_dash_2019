@@ -165,17 +165,15 @@ void state_normal() {
         colors[clt_color_lut[clt_led]];
 
     // status bars
-    float fpr = fixed_to_float(aemnet_utils::fuel_pressure());
-    if (fpr < 40) {
-        for (int i = 0; i < 8; i++) {
-            *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] = colors[RED];
-        }
+    float   fpr       = fixed_to_float(aemnet_utils::fuel_pressure());
+    uint8_t fpr_color = (fpr < 20) ? RED : (fpr < 40) ? YLW : OFF;
+    for (int i = 0; i < 8; i++) {
+        *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] = colors[fpr_color];
     }
-    float bat = fixed_to_float(aemnet_utils::battery_voltage());
-    if (bat < 12.4) {
-        for (int i = 8; i < 16; i++) {
-            *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] = colors[RED];
-        }
+    float   bat       = fixed_to_float(aemnet_utils::battery_voltage());
+    uint8_t bat_color = (bat < 12.2) ? RED : (bat < 13.5) ? YLW : OFF;
+    for (int i = 8; i < 16; i++) {
+        *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] = colors[bat_color];
     }
 }
 
