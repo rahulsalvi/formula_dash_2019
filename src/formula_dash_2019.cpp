@@ -9,24 +9,36 @@
 #include "constants.h"
 
 using aemnet_utils::fixed_point_t;
+using dashboard_shield::button_state_t;
 using dashboard_shield::dashboard_t;
+using dashboard_shield::get_button;
 
-static dashboard_t dashboard;
+dashboard_t    dashboard;
+button_state_t button_state;
 
 // TODO remove this and do real math
 inline float fixed_to_float(fixed_point_t a) {
     return a / 65536.0;
 }
 
-uint8_t state;
+uint8_t state    = STATE_IDLE;
+bool    ecu_on   = false;
+bool    debug_on = false;
+
+uint32_t enter_idle_ct  = ENTER_IDLE_CYCLES;
+uint32_t enter_debug_ct = ENTER_DEBUG_CYCLES;
+uint8_t  init_step      = 0;
 
 void state_idle();
 void state_init();
 void state_normal();
+void state_debug();
 
-uint32_t recv_cycle_count = ECU_OFF_CYCLES;
-uint8_t  received         = 0;
-int      init_step        = 0;
+void draw_tachometer();
+void draw_shift_lights();
+void draw_coolant_gauge();
+void draw_status_bars();
+void draw_cel_codes();
 
 inline void reset_dashboard() {
     memset((void*)&dashboard, 0, sizeof(dashboard_t));
@@ -36,14 +48,34 @@ void setup() {
     reset_dashboard();
     aemnet_utils::begin();
     dashboard_shield::begin();
-    dashboard_shield::update(dashboard);
-    eeprom_initialize();
-    state = STATE_IDLE;
+    button_state = dashboard_shield::update(dashboard);
+    state        = STATE_IDLE;
 }
 
 void loop() {
     reset_dashboard();
-    received = aemnet_utils::update();
+    uint8_t received = aemnet_utils::update();
+
+    // determine ecu_on
+    if (received) {
+        ecu_on        = true;
+        enter_idle_ct = ENTER_IDLE_CYCLES;
+    } else if (!enter_idle_ct) {
+        ecu_on = false;
+    } else {
+        enter_idle_ct -= 1;
+    }
+
+    // determine debug_on
+    if (!get_button(DEBUG_ACTIVE, button_state)) {
+        debug_on       = false;
+        enter_debug_ct = ENTER_DEBUG_CYCLES;
+    } else if (!enter_debug_ct) {
+        debug_on = true;
+    } else {
+        enter_debug_ct -= 1;
+    }
+
     switch (state) {
         case STATE_IDLE:
             state_idle();
@@ -54,16 +86,20 @@ void loop() {
         case STATE_NORMAL:
             state_normal();
             break;
+        case STATE_DEBUG:
+            state_debug();
+            break;
     }
-    dashboard_shield::update(dashboard);
+
+    button_state = dashboard_shield::update(dashboard);
     delay(10);
 }
 
 void state_idle() {
-    if (received) {
-        recv_cycle_count = ECU_OFF_CYCLES;
-        init_step        = 0;
-        state            = STATE_INIT;
+    if (debug_on) {
+        state = STATE_DEBUG;
+    } else if (ecu_on) {
+        state = STATE_INIT;
     }
 }
 
@@ -86,13 +122,28 @@ void state_init() {
 }
 
 void state_normal() {
-    recv_cycle_count = (received ? ECU_OFF_CYCLES : recv_cycle_count - 1);
-    if (!recv_cycle_count) {
-        state = STATE_IDLE;
-        return;
-    }
+    draw_tachometer();
+    draw_shift_lights();
+    draw_coolant_gauge();
+    draw_status_bars();
 
-    // tachometer
+    if (debug_on) {
+        state = STATE_DEBUG;
+    } else if (!ecu_on) {
+        state = STATE_IDLE;
+    }
+}
+
+void state_debug() {
+    draw_tachometer();
+    draw_cel_codes();
+    draw_coolant_gauge();
+    draw_status_bars();
+
+    if (!debug_on) { state = ecu_on ? STATE_NORMAL : STATE_IDLE; }
+}
+
+void draw_tachometer() {
     *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[10] = colors[WHT];
     *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[11] = colors[WHT];
     *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[12] = colors[RED];
@@ -108,8 +159,10 @@ void state_normal() {
         *(uint32_t*)&dashboard.pixel_channels[TACHOMETER].pixels[rpm_lut[i]] =
             colors[rpm_color_lut[i]];
     }
+}
 
-    // shift lights
+void draw_shift_lights() {
+    float rpm = fixed_to_float(aemnet_utils::rpm());
     if (rpm > 10800) {
         for (int i = 0; i < 15; i++) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] = colors[BLU];
@@ -148,8 +201,9 @@ void state_normal() {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[15] = colors[GRN];
         }
     }
+}
 
-    // coolant gauge
+void draw_coolant_gauge() {
     *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[9]  = colors[WHT];
     *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[10] = colors[WHT];
     *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[11] = colors[WHT];
@@ -163,8 +217,9 @@ void state_normal() {
         BLU, BLU, BLU, BLU, BLU, GRN, GRN, GRN, YLW, YLW, RED, RED, RED};
     *(uint32_t*)&dashboard.pixel_channels[COOLANT].pixels[clt_lut[clt_led]] =
         colors[clt_color_lut[clt_led]];
+}
 
-    // status bars
+void draw_status_bars() {
     float   fpr       = fixed_to_float(aemnet_utils::fuel_pressure());
     uint8_t fpr_color = (fpr < 20) ? RED : (fpr < 40) ? YLW : OFF;
     for (int i = 0; i < 8; i++) {
@@ -175,16 +230,9 @@ void state_normal() {
     for (int i = 8; i < 16; i++) {
         *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] = colors[bat_color];
     }
-
-    // starter button
-    if (rpm < 1000) { dashboard.rgb_leds[STARTER] = DS_RGB_GRN; }
-    /* for (int i = 0; i < CEL_CODES; i++) { */
-    /*     if (eeprom_read_byte(i)) { */
-    /*         dashboard.rgb_leds[STARTER] = DS_RGB_RED; */
-    /*         break; */
-    /*     } */
-    /* } */
 }
+
+void draw_cel_codes() {}
 
 int main() {
     setup();

@@ -9,13 +9,17 @@
 #define TACHOMETER 3
 
 #define STARTER 0
+#define DEBUG_ACTIVE 1
+#define DEBUG_CONTROL 2
 
 #define STATE_IDLE 0
 #define STATE_INIT 1
 #define STATE_NORMAL 2
+#define STATE_DEBUG 3
 
-#define ECU_OFF_CYCLES 100
+#define ENTER_IDLE_CYCLES 100
+#define ENTER_DEBUG_CYCLES 100
 
-#define CEL_CODES 64
+#define CEL_CODES 48
 
 #endif // CONSTANTS_H
