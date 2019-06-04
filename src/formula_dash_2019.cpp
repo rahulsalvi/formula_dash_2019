@@ -41,6 +41,7 @@ void draw_coolant_gauge();
 void draw_status_bars();
 void draw_cel_codes();
 void draw_starter_button();
+void draw_debug_button();
 
 void track_errors();
 
@@ -141,12 +142,15 @@ void state_normal() {
     }
 }
 
+int debug_button_function = DEBUG_CLEAR_CEL;
+
 void state_debug() {
     draw_tachometer();
     draw_cel_codes();
     draw_coolant_gauge();
     draw_status_bars();
     draw_starter_button();
+    draw_debug_button();
 
     track_errors();
 
@@ -261,6 +265,23 @@ void draw_starter_button() {
     dashboard.rgb_leds[STARTER] = (rpm > 1000) ? DS_RGB_OFF : DS_RGB_GRN;
     for (int i = 0; i < CEL_CODES; i++) {
         if (EEPROM.read(i)) { dashboard.rgb_leds[STARTER] = DS_RGB_RED; }
+    }
+}
+
+void draw_debug_button() {
+    switch (debug_button_function) {
+        case DEBUG_CLEAR_CEL:
+            dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_RED;
+            break;
+        case DEBUG_INC_BRIGHTNESS:
+            dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_GRN;
+            break;
+        case DEBUG_DEC_BRIGHTNESS:
+            dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_BLU;
+            break;
+        default:
+            dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_OFF;
+            break;
     }
 }
 
