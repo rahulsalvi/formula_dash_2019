@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "EEPROM.h"
 #include "WProgram.h"
 
 #include "aemnet_utils.h"
@@ -39,6 +40,9 @@ void draw_shift_lights();
 void draw_coolant_gauge();
 void draw_status_bars();
 void draw_cel_codes();
+void draw_starter_button();
+
+void track_errors();
 
 inline void reset_dashboard() {
     memset((void*)&dashboard, 0, sizeof(dashboard_t));
@@ -126,6 +130,9 @@ void state_normal() {
     draw_shift_lights();
     draw_coolant_gauge();
     draw_status_bars();
+    draw_starter_button();
+
+    track_errors();
 
     if (debug_on) {
         state = STATE_DEBUG;
@@ -139,6 +146,9 @@ void state_debug() {
     draw_cel_codes();
     draw_coolant_gauge();
     draw_status_bars();
+    draw_starter_button();
+
+    track_errors();
 
     if (!debug_on) { state = ecu_on ? STATE_NORMAL : STATE_IDLE; }
 }
@@ -232,7 +242,52 @@ void draw_status_bars() {
     }
 }
 
-void draw_cel_codes() {}
+void draw_cel_codes() {
+    for (int i = 0; i < 16; i++) {
+        if (EEPROM.read(CEL_OFFSET + (1 * i))) {
+            *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] += colors[GRN];
+        }
+        if (EEPROM.read(CEL_OFFSET + (2 * i))) {
+            *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] += colors[RED];
+        }
+        if (EEPROM.read(CEL_OFFSET + (3 * i))) {
+            *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] += colors[BLU];
+        }
+    }
+}
+
+void draw_starter_button() {
+    float rpm                   = fixed_to_float(aemnet_utils::rpm());
+    dashboard.rgb_leds[STARTER] = (rpm > 1000) ? DS_RGB_OFF : DS_RGB_GRN;
+    for (int i = 0; i < CEL_CODES; i++) {
+        if (EEPROM.read(i)) { dashboard.rgb_leds[STARTER] = DS_RGB_RED; }
+    }
+}
+
+uint32_t cel_fpr_below_20_ct = CEL_FPR_BELOW_20_CYCLES;
+uint32_t cel_fpr_below_40_ct = CEL_FPR_BELOW_40_CYCLES;
+
+void track_errors() {
+    float rpm = fixed_to_float(aemnet_utils::rpm());
+    float fpr = fixed_to_float(aemnet_utils::fuel_pressure());
+
+    if (!EEPROM.read(CEL_FPR_BELOW_20)) {
+        if (rpm > 1000 && fpr < 20) {
+            cel_fpr_below_20_ct -= 1;
+        } else {
+            cel_fpr_below_20_ct = CEL_FPR_BELOW_20_CYCLES;
+        }
+        if (!cel_fpr_below_20_ct) { EEPROM.update(CEL_FPR_BELOW_20, 1); }
+    }
+    if (!EEPROM.read(CEL_FPR_BELOW_40)) {
+        if (rpm > 1000 && fpr < 40) {
+            cel_fpr_below_40_ct -= 1;
+        } else {
+            cel_fpr_below_40_ct = CEL_FPR_BELOW_40_CYCLES;
+        }
+        if (!cel_fpr_below_40_ct) { EEPROM.update(CEL_FPR_BELOW_40, 1); }
+    }
+}
 
 int main() {
     setup();

@@ -10,3 +10,6 @@
 [submodule "libraries/FlexCAN_Library"]
 	path = libraries/FlexCAN_Library
 	url = https://github.com/pawelsky/FlexCAN_Library.git
+[submodule "libraries/EEPROM"]
+	path = libraries/EEPROM
+	url = https://github.com/PaulStoffregen/EEPROM.git
