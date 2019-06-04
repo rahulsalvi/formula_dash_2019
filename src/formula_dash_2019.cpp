@@ -24,25 +24,25 @@ void state_idle();
 void state_init();
 void state_normal();
 
-uint32_t recv_cycle_count = 300;
+uint32_t recv_cycle_count = ECU_OFF_CYCLES;
 uint8_t  received         = 0;
 int      init_step        = 0;
 
-inline void reset_all_pixels() {
-    memset((void*)&dashboard.pixel_channels, 0, DS_PIXEL_CHANNELS * DS_PIXELS_PER_CHANNEL * 4);
+inline void reset_dashboard() {
+    memset((void*)&dashboard, 0, sizeof(dashboard_t));
 }
 
 void setup() {
-    for (int i = 0; i < DS_RGB_LEDS; i++) { dashboard.rgb_leds[i] = DS_RGB_OFF; }
-    reset_all_pixels();
+    reset_dashboard();
     aemnet_utils::begin();
     dashboard_shield::begin();
     dashboard_shield::update(dashboard);
+    eeprom_initialize();
     state = STATE_IDLE;
 }
 
 void loop() {
-    reset_all_pixels();
+    reset_dashboard();
     received = aemnet_utils::update();
     switch (state) {
         case STATE_IDLE:
@@ -61,7 +61,7 @@ void loop() {
 
 void state_idle() {
     if (received) {
-        recv_cycle_count = 300;
+        recv_cycle_count = ECU_OFF_CYCLES;
         init_step        = 0;
         state            = STATE_INIT;
     }
@@ -86,7 +86,7 @@ void state_init() {
 }
 
 void state_normal() {
-    recv_cycle_count = (received ? 300 : recv_cycle_count - 1);
+    recv_cycle_count = (received ? ECU_OFF_CYCLES : recv_cycle_count - 1);
     if (!recv_cycle_count) {
         state = STATE_IDLE;
         return;
@@ -175,6 +175,15 @@ void state_normal() {
     for (int i = 8; i < 16; i++) {
         *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] = colors[bat_color];
     }
+
+    // starter button
+    if (rpm < 1000) { dashboard.rgb_leds[STARTER] = DS_RGB_GRN; }
+    /* for (int i = 0; i < CEL_CODES; i++) { */
+    /*     if (eeprom_read_byte(i)) { */
+    /*         dashboard.rgb_leds[STARTER] = DS_RGB_RED; */
+    /*         break; */
+    /*     } */
+    /* } */
 }
 
 int main() {
