@@ -7,6 +7,7 @@
 #include "dashboard_shield.h"
 
 #include "colors.h"
+#include "condition_tracker.h"
 #include "constants.h"
 
 using aemnet_utils::fixed_point_t;
@@ -22,13 +23,13 @@ inline float fixed_to_float(fixed_point_t a) {
     return a / 65536.0;
 }
 
-uint8_t state    = STATE_IDLE;
-bool    ecu_on   = false;
-bool    debug_on = false;
+uint8_t state = STATE_IDLE;
 
-uint32_t enter_idle_ct  = ENTER_IDLE_CYCLES;
-uint32_t enter_debug_ct = ENTER_DEBUG_CYCLES;
-uint8_t  init_step      = 0;
+bool                ecu_on;
+condition_tracker_t ecu_on_cond;
+
+bool                debug_on;
+condition_tracker_t debug_on_cond;
 
 void state_idle();
 void state_init();
@@ -50,36 +51,26 @@ inline void reset_dashboard() {
 }
 
 void setup() {
-    reset_dashboard();
     aemnet_utils::begin();
     dashboard_shield::begin();
+    reset_dashboard();
     button_state = dashboard_shield::update(dashboard);
     state        = STATE_IDLE;
+
+    init_condition_tracker(ecu_on_cond, ECU_ON_F_CYCLES, ECU_ON_T_CYCLES);
+    init_condition_tracker(debug_on_cond, DEBUG_ON_F_CYCLES, DEBUG_ON_T_CYCLES);
 }
 
 void loop() {
     reset_dashboard();
-    uint8_t received = aemnet_utils::update();
 
     // determine ecu_on
-    if (received) {
-        ecu_on        = true;
-        enter_idle_ct = ENTER_IDLE_CYCLES;
-    } else if (!enter_idle_ct) {
-        ecu_on = false;
-    } else {
-        enter_idle_ct -= 1;
-    }
+    ecu_on_cond.value = (aemnet_utils::update() != 0);
+    ecu_on            = track_condition(ecu_on_cond);
 
     // determine debug_on
-    if (!get_button(DEBUG_ACTIVE, button_state)) {
-        debug_on       = false;
-        enter_debug_ct = ENTER_DEBUG_CYCLES;
-    } else if (!enter_debug_ct) {
-        debug_on = true;
-    } else {
-        enter_debug_ct -= 1;
-    }
+    debug_on_cond.value = get_button(DEBUG_ACTIVE, button_state);
+    debug_on            = track_condition(debug_on_cond);
 
     switch (state) {
         case STATE_IDLE:
@@ -107,6 +98,8 @@ void state_idle() {
         state = STATE_INIT;
     }
 }
+
+uint8_t init_step = 0;
 
 void state_init() {
     static const uint8_t tach_lut[16]    = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
@@ -141,8 +134,6 @@ void state_normal() {
         state = STATE_IDLE;
     }
 }
-
-int debug_button_function = DEBUG_CLEAR_CEL;
 
 void state_debug() {
     draw_tachometer();
@@ -269,45 +260,43 @@ void draw_starter_button() {
 }
 
 void draw_debug_button() {
-    switch (debug_button_function) {
-        case DEBUG_CLEAR_CEL:
-            dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_RED;
-            break;
-        case DEBUG_INC_BRIGHTNESS:
-            dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_GRN;
-            break;
-        case DEBUG_DEC_BRIGHTNESS:
-            dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_BLU;
-            break;
-        default:
-            dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_OFF;
-            break;
-    }
+    dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_RED;
+    /* switch (debug_button_function) { */
+    /*     case DEBUG_CLEAR_CEL: */
+    /*         dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_RED; */
+    /*         break; */
+    /*     case DEBUG_INC_BRIGHTNESS: */
+    /*         dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_GRN; */
+    /*         break; */
+    /*     case DEBUG_DEC_BRIGHTNESS: */
+    /*         dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_BLU; */
+    /*         break; */
+    /*     default: */
+    /*         dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_OFF; */
+    /*         break; */
+    /* } */
 }
 
-uint32_t cel_fpr_below_20_ct = CEL_FPR_BELOW_20_CYCLES;
-uint32_t cel_fpr_below_40_ct = CEL_FPR_BELOW_40_CYCLES;
-
 void track_errors() {
-    float rpm = fixed_to_float(aemnet_utils::rpm());
-    float fpr = fixed_to_float(aemnet_utils::fuel_pressure());
+    /* float rpm = fixed_to_float(aemnet_utils::rpm()); */
+    /* float fpr = fixed_to_float(aemnet_utils::fuel_pressure()); */
 
-    if (!EEPROM.read(CEL_FPR_BELOW_20)) {
-        if (rpm > 1000 && fpr < 20) {
-            cel_fpr_below_20_ct -= 1;
-        } else {
-            cel_fpr_below_20_ct = CEL_FPR_BELOW_20_CYCLES;
-        }
-        if (!cel_fpr_below_20_ct) { EEPROM.update(CEL_FPR_BELOW_20, 1); }
-    }
-    if (!EEPROM.read(CEL_FPR_BELOW_40)) {
-        if (rpm > 1000 && fpr < 40) {
-            cel_fpr_below_40_ct -= 1;
-        } else {
-            cel_fpr_below_40_ct = CEL_FPR_BELOW_40_CYCLES;
-        }
-        if (!cel_fpr_below_40_ct) { EEPROM.update(CEL_FPR_BELOW_40, 1); }
-    }
+    /* if (!EEPROM.read(CEL_FPR_BELOW_20)) { */
+    /*     if (rpm > 1000 && fpr < 20) { */
+    /*         cel_fpr_below_20_ct -= 1; */
+    /*     } else { */
+    /*         cel_fpr_below_20_ct = CEL_FPR_BELOW_20_CYCLES; */
+    /*     } */
+    /*     if (!cel_fpr_below_20_ct) { EEPROM.update(CEL_FPR_BELOW_20, 1); } */
+    /* } */
+    /* if (!EEPROM.read(CEL_FPR_BELOW_40)) { */
+    /*     if (rpm > 1000 && fpr < 40) { */
+    /*         cel_fpr_below_40_ct -= 1; */
+    /*     } else { */
+    /*         cel_fpr_below_40_ct = CEL_FPR_BELOW_40_CYCLES; */
+    /*     } */
+    /*     if (!cel_fpr_below_40_ct) { EEPROM.update(CEL_FPR_BELOW_40, 1); } */
+    /* } */
 }
 
 int main() {
