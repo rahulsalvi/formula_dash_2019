@@ -101,7 +101,6 @@ void loop() {
     }
 
     button_state = dashboard_shield::update(dashboard);
-    delay(1);
 }
 
 void reset_error_trackers();
@@ -128,7 +127,7 @@ void state_init() {
         *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] =
             colors[color_offset + init_sequence_status_bars[init_step][i]];
     }
-    delay(30);
+    delay(35);
     init_step += 1;
     if (init_step == INIT_STEPS) {
         state     = STATE_NORMAL;
@@ -449,7 +448,7 @@ int main() {
     setup();
     elapsedMicros em;
     while (1) {
-        if (em >= 2000) {
+        if (em >= LOOP_PERIOD) {
             em = 0;
             loop();
         }
