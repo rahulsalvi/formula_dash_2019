@@ -9,10 +9,11 @@
 #define CONDITION_T_CT 3
 
 typedef struct condition_tracker_t {
-    uint16_t counter;
-    uint16_t threshold_t; // must be true for this many cycles
-    uint16_t threshold_f; // must be false for this many cycles
+    uint32_t counter;
+    uint32_t threshold_t; // must be true for this many cycles
+    uint32_t threshold_f; // must be false for this many cycles
     bool     value;       // condition value
+    bool     output;      // output value
     uint8_t  state;
 } condition_tracker_t;
 
@@ -21,10 +22,11 @@ void init_condition_tracker(condition_tracker_t& condition, uint16_t thresh_f, u
     condition.threshold_t = thresh_t;
     condition.threshold_f = thresh_f;
     condition.value       = false;
+    condition.output      = false;
     condition.state       = CONDITION_F;
 }
 
-bool track_condition(condition_tracker_t& condition) {
+void track_condition(condition_tracker_t& condition) {
     switch (condition.state) {
         case CONDITION_F:
             condition.counter = condition.threshold_t;
@@ -51,7 +53,7 @@ bool track_condition(condition_tracker_t& condition) {
             }
             break;
     }
-    return (condition.state == CONDITION_T) || (condition.state == CONDITION_T_CT);
+    condition.output = (condition.state == CONDITION_T) || (condition.state == CONDITION_T_CT);
 }
 
 #endif // CONDITION_TRACKER_H

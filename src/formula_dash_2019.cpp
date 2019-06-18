@@ -25,20 +25,11 @@ inline float fixed_to_float(fixed_point_t a) {
 
 uint8_t state;
 
-bool                ecu_on;
-condition_tracker_t ecu_on_cond;
-
-bool                debug_on;
-condition_tracker_t debug_on_cond;
-
-bool                debug_pressed;
-condition_tracker_t debug_pressed_cond;
-
-bool                debug_short_held;
-condition_tracker_t debug_short_held_cond;
-
-bool                debug_long_held;
-condition_tracker_t debug_long_held_cond;
+condition_tracker_t ecu_on;
+condition_tracker_t debug_on;
+condition_tracker_t debug_pressed;
+condition_tracker_t debug_short_held;
+condition_tracker_t debug_long_held;
 
 uint8_t init_step    = 0;
 int     color_offset = EEPROM.read(BRIGHTNESS_ADDR);
@@ -69,23 +60,23 @@ void setup() {
     button_state = dashboard_shield::update(dashboard);
     state        = STATE_IDLE;
 
-    init_condition_tracker(ecu_on_cond, ECU_ON_F_CYCLES, ECU_ON_T_CYCLES);
-    init_condition_tracker(debug_on_cond, DEBUG_ON_F_CYCLES, DEBUG_ON_T_CYCLES);
-    init_condition_tracker(debug_pressed_cond, 1, PRESSED_CYCLES);
-    init_condition_tracker(debug_short_held_cond, 1, SHORT_HELD_CYCLES);
-    init_condition_tracker(debug_long_held_cond, 1, LONG_HELD_CYCLES);
+    init_condition_tracker(ecu_on, ECU_ON_F_CYCLES, ECU_ON_T_CYCLES);
+    init_condition_tracker(debug_on, DEBUG_ON_F_CYCLES, DEBUG_ON_T_CYCLES);
+    init_condition_tracker(debug_pressed, 1, PRESSED_CYCLES);
+    init_condition_tracker(debug_short_held, 1, SHORT_HELD_CYCLES);
+    init_condition_tracker(debug_long_held, 1, LONG_HELD_CYCLES);
 }
 
 void loop() {
     reset_dashboard();
 
     // determine ecu_on
-    ecu_on_cond.value = (aemnet_utils::update() != 0);
-    ecu_on            = track_condition(ecu_on_cond);
+    ecu_on.value = (aemnet_utils::update() != 0);
+    track_condition(ecu_on);
 
     // determine debug_on
-    debug_on_cond.value = get_button(DEBUG_ACTIVE, button_state);
-    debug_on            = track_condition(debug_on_cond);
+    debug_on.value = get_button(DEBUG_ACTIVE, button_state);
+    track_condition(debug_on);
 
     switch (state) {
         case STATE_IDLE:
@@ -107,9 +98,9 @@ void loop() {
 }
 
 void state_idle() {
-    if (debug_on) {
+    if (debug_on.output) {
         state = STATE_DEBUG;
-    } else if (ecu_on) {
+    } else if (ecu_on.output) {
         state = STATE_INIT;
     }
 }
@@ -144,9 +135,9 @@ void state_normal() {
 
     track_errors();
 
-    if (debug_on) {
+    if (debug_on.output) {
         state = STATE_DEBUG;
-    } else if (!ecu_on) {
+    } else if (!ecu_on.output) {
         state = STATE_IDLE;
     }
 }
@@ -154,21 +145,21 @@ void state_normal() {
 int track_debug_button() {
     bool btn = get_button(DEBUG_CONTROL, button_state);
 
-    debug_pressed_cond.value = btn;
-    debug_pressed            = track_condition(debug_pressed_cond);
+    debug_pressed.value = btn;
+    track_condition(debug_pressed);
 
-    debug_short_held_cond.value = btn;
-    debug_short_held            = track_condition(debug_short_held_cond);
+    debug_short_held.value = btn;
+    track_condition(debug_short_held);
 
-    debug_long_held_cond.value = btn;
-    debug_long_held            = track_condition(debug_long_held_cond);
+    debug_long_held.value = btn;
+    track_condition(debug_long_held);
 
     if (!btn) {
-        if (debug_long_held) {
+        if (debug_long_held.output) {
             return DEBUG_LONG_HELD;
-        } else if (debug_short_held) {
+        } else if (debug_short_held.output) {
             return DEBUG_SHORT_HELD;
-        } else if (debug_pressed) {
+        } else if (debug_pressed.output) {
             return DEBUG_PRESSED;
         }
     }
@@ -270,7 +261,7 @@ void state_debug() {
 
     track_errors();
 
-    if (!debug_on) { state = ecu_on ? STATE_NORMAL : STATE_IDLE; }
+    if (!debug_on.output) { state = (ecu_on.output ? STATE_NORMAL : STATE_IDLE); }
 }
 
 void draw_tachometer() {

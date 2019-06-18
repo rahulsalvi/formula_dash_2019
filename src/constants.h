@@ -1,6 +1,8 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+// loop time is roughly 1.5 ms -- this is a low estimate
+
 #define COOLANT 0
 #define STATUS_BARS 1
 #define SHIFT_LIGHTS 2
@@ -18,12 +20,12 @@
 #define ECU_ON_F_CYCLES 500
 #define ECU_ON_T_CYCLES 1
 
-#define DEBUG_ON_F_CYCLES 500
-#define DEBUG_ON_T_CYCLES 50
+#define DEBUG_ON_F_CYCLES 100
+#define DEBUG_ON_T_CYCLES 100
 
 #define PRESSED_CYCLES 5
 #define SHORT_HELD_CYCLES 100
-#define LONG_HELD_CYCLES 1000
+#define LONG_HELD_CYCLES 5000
 
 #define CEL_CODES 48
 #define CEL_OFFSET 0
