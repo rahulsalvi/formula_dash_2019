@@ -2,6 +2,7 @@
 
 #include "EEPROM.h"
 #include "WProgram.h"
+#include "elapsedMillis.h"
 
 #include "aemnet_utils.h"
 #include "dashboard_shield.h"
@@ -103,7 +104,10 @@ void loop() {
     delay(1);
 }
 
+void reset_error_trackers();
+
 void state_idle() {
+    reset_error_trackers();
     if (debug_on.output) {
         state = STATE_DEBUG;
     } else if (ecu_on.output) {
@@ -431,13 +435,23 @@ void track_errors() {
     if (fpr_low.output) { EEPROM.update(CEL_OFFSET + FPR_LOW_CODE, 1); }
 }
 
-void clear_errors() {
+void reset_error_trackers() {
     reset_condition_tracker(fpr_critical);
     reset_condition_tracker(fpr_low);
+}
+
+void clear_errors() {
+    reset_error_trackers();
     for (int i = 0; i < CEL_CODES; i++) { EEPROM.update(CEL_OFFSET + i, 0); }
 }
 
 int main() {
     setup();
-    while (1) { loop(); }
+    elapsedMicros em;
+    while (1) {
+        if (em >= 2000) {
+            em = 0;
+            loop();
+        }
+    }
 }
