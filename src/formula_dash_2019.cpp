@@ -23,7 +23,7 @@ inline float fixed_to_float(fixed_point_t a) {
     return a / 65536.0;
 }
 
-uint8_t state = STATE_IDLE;
+uint8_t state;
 
 bool                ecu_on;
 condition_tracker_t ecu_on_cond;
@@ -40,7 +40,8 @@ condition_tracker_t debug_short_held_cond;
 bool                debug_long_held;
 condition_tracker_t debug_long_held_cond;
 
-uint8_t color_offset = 8;
+uint8_t init_step    = 0;
+int     color_offset = EEPROM.read(BRIGHTNESS_ADDR);
 
 void state_idle();
 void state_init();
@@ -113,8 +114,6 @@ void state_idle() {
     }
 }
 
-uint8_t init_step = 0;
-
 void state_init() {
     static const uint8_t tach_lut[16]    = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
     static const uint8_t coolant_lut[16] = {11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12};
@@ -130,7 +129,10 @@ void state_init() {
     }
     delay(30);
     init_step += 1;
-    if (init_step == INIT_STEPS) { state = STATE_NORMAL; }
+    if (init_step == INIT_STEPS) {
+        state     = STATE_NORMAL;
+        init_step = 0;
+    }
 }
 
 void state_normal() {
@@ -152,98 +154,121 @@ void state_normal() {
 int track_debug_button() {
     bool btn = get_button(DEBUG_CONTROL, button_state);
 
-    debug_pressed_cond.value = btn || debug_pressed;
+    debug_pressed_cond.value = btn;
     debug_pressed            = track_condition(debug_pressed_cond);
 
-    debug_short_held_cond.value = btn || debug_short_held;
+    debug_short_held_cond.value = btn;
     debug_short_held            = track_condition(debug_short_held_cond);
 
-    debug_long_held_cond.value = btn || debug_long_held;
+    debug_long_held_cond.value = btn;
     debug_long_held            = track_condition(debug_long_held_cond);
 
-    int ret = DEBUG_NONE;
     if (!btn) {
         if (debug_long_held) {
-            ret = DEBUG_LONG_HELD;
+            return DEBUG_LONG_HELD;
         } else if (debug_short_held) {
-            ret = DEBUG_SHORT_HELD;
+            return DEBUG_SHORT_HELD;
         } else if (debug_pressed) {
-            ret = DEBUG_PRESSED;
-        }
-        if (ret) {
-            debug_pressed    = false;
-            debug_short_held = false;
-            debug_long_held  = false;
+            return DEBUG_PRESSED;
         }
     }
-    return ret;
+    return DEBUG_NONE;
 }
 
-void clear_cel(){};
-void inc_brightness() {
-    color_offset += 8;
-};
-void dec_brightness() {
-    color_offset -= 8;
+void clear_cel() {
+    for (int i = 0; i < CEL_CODES; i++) { EEPROM.update(CEL_OFFSET + i, 0); }
 };
 
-int  debug_control_function = DEBUG_INC_BRIGHTNESS;
+inline void inc_brightness() {
+    color_offset += 8;
+    if (color_offset < 0) { color_offset = 0; }
+    if (color_offset > 248) { color_offset = 248; }
+    EEPROM.update(BRIGHTNESS_ADDR, color_offset);
+};
+
+inline void dec_brightness() {
+    color_offset -= 8;
+    if (color_offset < 0) { color_offset = 0; }
+    if (color_offset > 248) { color_offset = 248; }
+    EEPROM.update(BRIGHTNESS_ADDR, color_offset);
+};
+
+int debug_control_function = DEBUG_INC_BRIGHTNESS;
+
+void debug_long_held_action() {
+    switch (debug_control_function) {
+        case DEBUG_CLEAR_CEL:
+            clear_cel();
+            break;
+        case DEBUG_INC_BRIGHTNESS:
+            debug_control_function = DEBUG_DEC_BRIGHTNESS;
+            break;
+        case DEBUG_DEC_BRIGHTNESS:
+            debug_control_function = DEBUG_CLEAR_CEL;
+            break;
+        default:
+            debug_control_function = DEBUG_INC_BRIGHTNESS;
+            break;
+    }
+}
+
+void debug_short_held_action() {
+    switch (debug_control_function) {
+        case DEBUG_CLEAR_CEL:
+            debug_control_function = DEBUG_INC_BRIGHTNESS;
+            break;
+        case DEBUG_INC_BRIGHTNESS:
+            debug_control_function = DEBUG_DEC_BRIGHTNESS;
+            break;
+        case DEBUG_DEC_BRIGHTNESS:
+            debug_control_function = DEBUG_CLEAR_CEL;
+            break;
+        default:
+            debug_control_function = DEBUG_INC_BRIGHTNESS;
+            break;
+    }
+}
+
+void debug_pressed_action() {
+    switch (debug_control_function) {
+        case DEBUG_CLEAR_CEL:
+            break;
+        case DEBUG_INC_BRIGHTNESS:
+            inc_brightness();
+            break;
+        case DEBUG_DEC_BRIGHTNESS:
+            dec_brightness();
+            break;
+        default:
+            debug_control_function = DEBUG_INC_BRIGHTNESS;
+            break;
+    }
+}
+
 void state_debug() {
+    int debug_control = track_debug_button();
+    switch (debug_control) {
+        case DEBUG_LONG_HELD:
+            debug_long_held_action();
+            break;
+        case DEBUG_SHORT_HELD:
+            debug_short_held_action();
+            break;
+        case DEBUG_PRESSED:
+            debug_pressed_action();
+            break;
+        default:
+            break;
+    }
+
     draw_tachometer();
-    /* draw_cel_codes(); */
-    /* draw_coolant_gauge(); */
-    /* draw_status_bars(); */
-    /* draw_starter_button(); */
+    draw_cel_codes();
+    draw_coolant_gauge();
+    draw_status_bars();
+    draw_starter_button();
     draw_debug_button();
 
     track_errors();
-
-    int debug_control = track_debug_button();
-    if (debug_control == DEBUG_LONG_HELD) {
-        switch (debug_control_function) {
-            case DEBUG_CLEAR_CEL:
-                clear_cel();
-                break;
-            case DEBUG_INC_BRIGHTNESS:
-                debug_control_function = DEBUG_DEC_BRIGHTNESS;
-                break;
-            case DEBUG_DEC_BRIGHTNESS:
-                debug_control_function = DEBUG_CLEAR_CEL;
-                break;
-            default:
-                debug_control_function = DEBUG_INC_BRIGHTNESS;
-                break;
-        }
-    } else if (debug_control == DEBUG_SHORT_HELD) {
-        switch (debug_control_function) {
-            case DEBUG_CLEAR_CEL:
-                debug_control_function = DEBUG_INC_BRIGHTNESS;
-                break;
-            case DEBUG_INC_BRIGHTNESS:
-                debug_control_function = DEBUG_DEC_BRIGHTNESS;
-                break;
-            case DEBUG_DEC_BRIGHTNESS:
-                debug_control_function = DEBUG_CLEAR_CEL;
-                break;
-            default:
-                debug_control_function = DEBUG_INC_BRIGHTNESS;
-                break;
-        }
-    } else if (debug_control == DEBUG_PRESSED) {
-        switch (debug_control_function) {
-            case DEBUG_CLEAR_CEL:
-                break;
-            case DEBUG_INC_BRIGHTNESS:
-                inc_brightness();
-                break;
-            case DEBUG_DEC_BRIGHTNESS:
-                dec_brightness();
-                break;
-            default:
-                debug_control_function = DEBUG_INC_BRIGHTNESS;
-                break;
-        }
-    }
 
     if (!debug_on) { state = ecu_on ? STATE_NORMAL : STATE_IDLE; }
 }
@@ -357,20 +382,20 @@ void draw_status_bars() {
 }
 
 void draw_cel_codes() {
-    /* for (int i = 0; i < 16; i++) { */
-    /*     if (EEPROM.read(CEL_OFFSET + (1 * i))) { */
-    /*         *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] += colors[color_offset
-     * + GRN]; */
-    /*     } */
-    /*     if (EEPROM.read(CEL_OFFSET + (2 * i))) { */
-    /*         *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] += colors[color_offset
-     * + RED]; */
-    /*     } */
-    /*     if (EEPROM.read(CEL_OFFSET + (3 * i))) { */
-    /*         *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] += colors[color_offset
-     * + BLU]; */
-    /*     } */
-    /* } */
+    for (int i = 0; i < 16; i++) {
+        if (EEPROM.read(CEL_OFFSET + (i + 0))) {
+            *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] +=
+                colors[color_offset + RED];
+        }
+        if (EEPROM.read(CEL_OFFSET + (i + 16))) {
+            *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] +=
+                colors[color_offset + GRN];
+        }
+        if (EEPROM.read(CEL_OFFSET + (i + 32))) {
+            *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] +=
+                colors[color_offset + BLU];
+        }
+    }
 }
 
 void draw_starter_button() {

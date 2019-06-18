@@ -23,7 +23,7 @@
 
 #define PRESSED_CYCLES 5
 #define SHORT_HELD_CYCLES 100
-#define LONG_HELD_CYCLES 10000
+#define LONG_HELD_CYCLES 1000
 
 #define CEL_CODES 48
 #define CEL_OFFSET 0
@@ -41,5 +41,7 @@
 #define DEBUG_PRESSED 1
 #define DEBUG_SHORT_HELD 2
 #define DEBUG_LONG_HELD 3
+
+#define BRIGHTNESS_ADDR 97
 
 #endif // CONSTANTS_H
