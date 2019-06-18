@@ -17,13 +17,20 @@ typedef struct condition_tracker_t {
     uint8_t  state;
 } condition_tracker_t;
 
-void init_condition_tracker(condition_tracker_t& condition, uint16_t thresh_f, uint16_t thresh_t) {
+void init_condition_tracker(condition_tracker_t& condition, uint32_t thresh_f, uint32_t thresh_t) {
     condition.counter     = thresh_t;
     condition.threshold_t = thresh_t;
     condition.threshold_f = thresh_f;
     condition.value       = false;
     condition.output      = false;
     condition.state       = CONDITION_F;
+}
+
+void reset_condition_tracker(condition_tracker_t& condition) {
+    condition.counter = condition.threshold_t;
+    condition.value   = false;
+    condition.output  = false;
+    condition.state   = CONDITION_F;
 }
 
 void track_condition(condition_tracker_t& condition) {

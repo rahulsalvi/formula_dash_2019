@@ -31,6 +31,9 @@ condition_tracker_t debug_pressed;
 condition_tracker_t debug_short_held;
 condition_tracker_t debug_long_held;
 
+condition_tracker_t fpr_critical;
+condition_tracker_t fpr_low;
+
 uint8_t init_step    = 0;
 int     color_offset = EEPROM.read(BRIGHTNESS_ADDR);
 
@@ -43,7 +46,7 @@ void draw_tachometer();
 void draw_shift_lights();
 void draw_coolant_gauge();
 void draw_status_bars();
-void draw_cel_codes();
+void draw_errors();
 void draw_starter_button();
 void draw_debug_button();
 
@@ -65,6 +68,9 @@ void setup() {
     init_condition_tracker(debug_pressed, 1, PRESSED_CYCLES);
     init_condition_tracker(debug_short_held, 1, SHORT_HELD_CYCLES);
     init_condition_tracker(debug_long_held, 1, LONG_HELD_CYCLES);
+
+    init_condition_tracker(fpr_critical, FPR_CRITICAL_F_CYCLES, FPR_CRITICAL_T_CYCLES);
+    init_condition_tracker(fpr_low, FPR_LOW_F_CYCLES, FPR_LOW_T_CYCLES);
 }
 
 void loop() {
@@ -166,9 +172,7 @@ int track_debug_button() {
     return DEBUG_NONE;
 }
 
-void clear_cel() {
-    for (int i = 0; i < CEL_CODES; i++) { EEPROM.update(CEL_OFFSET + i, 0); }
-};
+void clear_errors();
 
 inline void inc_brightness() {
     color_offset += 8;
@@ -188,14 +192,14 @@ int debug_control_function = DEBUG_INC_BRIGHTNESS;
 
 void debug_long_held_action() {
     switch (debug_control_function) {
-        case DEBUG_CLEAR_CEL:
-            clear_cel();
+        case DEBUG_CLEAR_ERRORS:
+            clear_errors();
             break;
         case DEBUG_INC_BRIGHTNESS:
             debug_control_function = DEBUG_DEC_BRIGHTNESS;
             break;
         case DEBUG_DEC_BRIGHTNESS:
-            debug_control_function = DEBUG_CLEAR_CEL;
+            debug_control_function = DEBUG_CLEAR_ERRORS;
             break;
         default:
             debug_control_function = DEBUG_INC_BRIGHTNESS;
@@ -205,14 +209,14 @@ void debug_long_held_action() {
 
 void debug_short_held_action() {
     switch (debug_control_function) {
-        case DEBUG_CLEAR_CEL:
+        case DEBUG_CLEAR_ERRORS:
             debug_control_function = DEBUG_INC_BRIGHTNESS;
             break;
         case DEBUG_INC_BRIGHTNESS:
             debug_control_function = DEBUG_DEC_BRIGHTNESS;
             break;
         case DEBUG_DEC_BRIGHTNESS:
-            debug_control_function = DEBUG_CLEAR_CEL;
+            debug_control_function = DEBUG_CLEAR_ERRORS;
             break;
         default:
             debug_control_function = DEBUG_INC_BRIGHTNESS;
@@ -222,7 +226,7 @@ void debug_short_held_action() {
 
 void debug_pressed_action() {
     switch (debug_control_function) {
-        case DEBUG_CLEAR_CEL:
+        case DEBUG_CLEAR_ERRORS:
             break;
         case DEBUG_INC_BRIGHTNESS:
             inc_brightness();
@@ -253,7 +257,7 @@ void state_debug() {
     }
 
     draw_tachometer();
-    draw_cel_codes();
+    draw_errors();
     draw_coolant_gauge();
     draw_status_bars();
     draw_starter_button();
@@ -359,7 +363,7 @@ void draw_coolant_gauge() {
 
 void draw_status_bars() {
     float   fpr       = fixed_to_float(aemnet_utils::fuel_pressure());
-    uint8_t fpr_color = (fpr < 20) ? RED : (fpr < 40) ? YLW : OFF;
+    uint8_t fpr_color = (fpr < FPR_CRITICAL_PSI) ? RED : (fpr < FPR_LOW_PSI) ? YLW : OFF;
     for (int i = 0; i < 8; i++) {
         *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] =
             colors[color_offset + fpr_color];
@@ -372,7 +376,7 @@ void draw_status_bars() {
     }
 }
 
-void draw_cel_codes() {
+void draw_errors() {
     for (int i = 0; i < 16; i++) {
         if (EEPROM.read(CEL_OFFSET + (i + 0))) {
             *(uint32_t*)&dashboard.pixel_channels[SHIFT_LIGHTS].pixels[i] +=
@@ -399,7 +403,7 @@ void draw_starter_button() {
 
 void draw_debug_button() {
     switch (debug_control_function) {
-        case DEBUG_CLEAR_CEL:
+        case DEBUG_CLEAR_ERRORS:
             dashboard.rgb_leds[DEBUG_CONTROL] = DS_RGB_RED;
             break;
         case DEBUG_INC_BRIGHTNESS:
@@ -415,25 +419,22 @@ void draw_debug_button() {
 }
 
 void track_errors() {
-    /* float rpm = fixed_to_float(aemnet_utils::rpm()); */
-    /* float fpr = fixed_to_float(aemnet_utils::fuel_pressure()); */
+    float fpr     = fixed_to_float(aemnet_utils::fuel_pressure());
+    bool  pump_on = aemnet_utils::fuel_pump_on();
 
-    /* if (!EEPROM.read(CEL_FPR_BELOW_20)) { */
-    /*     if (rpm > 1000 && fpr < 20) { */
-    /*         cel_fpr_below_20_ct -= 1; */
-    /*     } else { */
-    /*         cel_fpr_below_20_ct = CEL_FPR_BELOW_20_CYCLES; */
-    /*     } */
-    /*     if (!cel_fpr_below_20_ct) { EEPROM.update(CEL_FPR_BELOW_20, 1); } */
-    /* } */
-    /* if (!EEPROM.read(CEL_FPR_BELOW_40)) { */
-    /*     if (rpm > 1000 && fpr < 40) { */
-    /*         cel_fpr_below_40_ct -= 1; */
-    /*     } else { */
-    /*         cel_fpr_below_40_ct = CEL_FPR_BELOW_40_CYCLES; */
-    /*     } */
-    /*     if (!cel_fpr_below_40_ct) { EEPROM.update(CEL_FPR_BELOW_40, 1); } */
-    /* } */
+    fpr_critical.value = (pump_on && (fpr < FPR_CRITICAL_PSI)) || fpr_critical.output;
+    track_condition(fpr_critical);
+    if (fpr_critical.output) { EEPROM.update(CEL_OFFSET + FPR_CRITICAL_CODE, 1); }
+
+    fpr_low.value = (pump_on && (fpr < FPR_LOW_PSI)) || fpr_low.output;
+    track_condition(fpr_low);
+    if (fpr_low.output) { EEPROM.update(CEL_OFFSET + FPR_LOW_CODE, 1); }
+}
+
+void clear_errors() {
+    reset_condition_tracker(fpr_critical);
+    reset_condition_tracker(fpr_low);
+    for (int i = 0; i < CEL_CODES; i++) { EEPROM.update(CEL_OFFSET + i, 0); }
 }
 
 int main() {
