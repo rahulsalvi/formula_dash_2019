@@ -371,8 +371,9 @@ void draw_status_bars() {
         *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] =
             colors[color_offset + fpr_color];
     }
-    float   bat       = fixed_to_float(aemnet_utils::battery_voltage());
-    uint8_t bat_color = (bat < 12.2) ? RED : (bat < 13.5) ? YLW : OFF;
+    float   bat = fixed_to_float(aemnet_utils::battery_voltage());
+    uint8_t bat_color =
+        (bat < BATTERY_CRITICAL_VOLTS) ? RED : (bat < BATTERY_LOW_VOLTS) ? YLW : OFF;
     for (int i = 8; i < 16; i++) {
         *(uint32_t*)&dashboard.pixel_channels[STATUS_BARS].pixels[i] =
             colors[color_offset + bat_color];
